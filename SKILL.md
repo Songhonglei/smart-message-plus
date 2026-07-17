@@ -1,24 +1,26 @@
 ---
 name: smart-message-plus
 description: >
-  Cross-platform IM messaging CLI for DingTalk and Feishu (Lark) enterprise
-  apps. Send P2P / group messages with text, Markdown, images, files,
-  @mentions, recall, message templates, contact aliases, multi-account
-  management, department broadcast, and a configurable safety gate with
-  admin approval codes. Use when the user asks to send messages via
-  DingTalk / Feishu ("用钉钉/飞书发消息", "smart-message 发给 XX",
-  "跨平台发消息"). Message content must be provided by the user - AI must
-  never draft it autonomously.
+  Cross-platform IM messaging CLI for DingTalk, Feishu (Lark) enterprise
+  apps and WeCom (WeChat Work) group robot webhooks. Send P2P / group
+  messages with text, Markdown, images, files, @mentions, recall, message
+  templates, contact aliases, multi-account management, department
+  broadcast, and a configurable safety gate with admin approval codes.
+  Use when the user asks to send messages via DingTalk / Feishu / WeCom
+  ("用钉钉/飞书/企业微信发消息", "smart-message 发给 XX", "跨平台发消息").
+  Message content must be provided by the user - AI must never draft it
+  autonomously.
 ---
 
 # smart-message-plus
 
-- **Version**: 1.0.0
+- **Version**: 2.1.0
 - **License**: MIT
 - **Author**: Evan Song · [github.com/Songhonglei](https://github.com/Songhonglei)
 - **Repository**: https://github.com/Songhonglei/smart-message-plus
 
-> Unified CLI to send messages via **DingTalk (钉钉)** and **Feishu (飞书)** enterprise apps — with contact aliases, templates, media, recall, department broadcast, and a configurable safety gate with admin approval codes.
+
+> Unified CLI to send messages via **DingTalk (钉钉)**, **Feishu (飞书)** enterprise apps and **WeCom (企业微信)** group robot webhooks — with contact aliases, templates, media, recall, department broadcast, and a configurable safety gate with admin approval codes.
 
 ## ⚠️ 消息内容红线（必读）
 
@@ -30,6 +32,12 @@ description: >
 ```bash
 SCRIPT="python3 <SKILL_DIR>/scripts/send.py"
 
+# 🚀 推荐：交互式配置向导（选渠道→录凭证→自动验证→设默认账号，内嵌各平台权限清单）
+$SCRIPT --onboard          # 已配置且有效的渠道自动跳过；--onboard --force 全部重配
+$SCRIPT --onboard-status   # 查看配置完整度（渠道/凭证有效性/别名/门控）
+# 非交互环境（Agent/管道）下 --onboard 不会卡死，自动改为输出状态+分步命令手册
+
+# 或手动逐项配置：
 # 1. 保存账号（钉钉企业内部应用）
 $SCRIPT --save-account my-dingtalk dingtalk "钉钉Bot" \
   --app-key <AppKey/ClientID> --app-secret <AppSecret> [--robot-code <robotCode>]
@@ -37,6 +45,11 @@ $SCRIPT --save-account my-dingtalk dingtalk "钉钉Bot" \
 # 飞书自建应用
 $SCRIPT --save-account my-feishu feishu "飞书Bot" \
   --app-id <App ID> --app-secret <App Secret>
+
+# 企业微信（webhook 模式：无需企业凭证，群机器人 webhook 即用即发）
+$SCRIPT --save-account my-wecom wecom "企微Bot"        # 账号可选，仅作 provider 占位
+$SCRIPT --save-group 告警群 wecom "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx"
+$SCRIPT --provider wecom --chat-id 告警群 --msg "内容"
 
 # 2. 验证凭证
 $SCRIPT --test-account my-dingtalk
@@ -114,7 +127,7 @@ $SCRIPT --list-accounts / --set-default-account <slug> / --remove-account <slug>
 # 通用
 --dry-run       # 只预览不发送
 --account <slug> # 指定账号
---provider dingtalk|feishu
+--provider dingtalk|feishu|wecom
 ```
 
 ## 安全门控（可配置）
@@ -153,14 +166,28 @@ $SCRIPT --list-accounts / --set-default-account <slug> / --remove-account <slug>
 
 ## 平台差异速查
 
-| | 钉钉 | 飞书 |
-|--|------|------|
-| 单聊收件人 | 手机号/userId | 邮箱/手机号/open_id |
-| Markdown | 原生 | 卡片 lark_md 渲染 |
-| 图片上限 | 20MB | 10MB |
-| 文件上限 | 20MB | 30MB |
-| 撤回时限 | 不限 | 24 小时 |
-| 群聊前提 | 机器人先进群 | 机器人先进群 |
+| | 钉钉 | 飞书 | 企业微信(webhook) |
+|--|------|------|------|
+| 单聊收件人 | 手机号/userId | 邮箱/手机号/open_id | ❌ 仅群聊 |
+| Markdown | 原生 | 卡片 lark_md 渲染 | 原生 |
+| 图片上限 | 20MB | 10MB | 2MB |
+| 文件上限 | 20MB | 30MB | 20MB |
+| 撤回时限 | 不限 | 24 小时 | ❌ 不支持 |
+| 群聊前提 | 机器人先进群 | 机器人先进群 | 群里添加机器人拿 webhook |
+
+### 企业微信的两种模式（重要）
+
+| | webhook 模式（当前已实现） | wecom-app 模式（预留，未实现） |
+|--|--------------------------|------------------------------|
+| 接入成本 | 群里加机器人复制 webhook，30 秒 | 自建应用 + **企业可信 IP** |
+| 群消息 | ✅ 文本/MD/图片/文件/news卡片/@人/@所有人 | ✅ |
+| 单聊 / 通讯录查人 | ❌ | ✅ |
+| 建群 / 撤回 / 部门广播 | ❌ | ✅ |
+
+> **为什么先做 webhook**：自建应用的 API 调用要求来源 IP 在「企业可信 IP」白名单内，且企业微信**拒绝将第三方云服务商 IP 加白**（实测 errcode=60020，腾讯云出口 IP 被拒）。托管容器/云环境没有企业自有出口 IP 时，全能力模式客观走不通。webhook 模式无 IP 校验，即用即发。
+> 未来若有企业自有服务器出口 IP，可升级 wecom-app 模式解锁全能力（账号字段 corp_id/corp_secret/agent_id 已预留）。
+>
+> webhook 细节：一个 webhook = 一个群；`--chat-id` 可传群别名、完整 webhook URL 或裸 key；markdown 不支持 @所有人（文本消息支持）；news 卡片仅支持一个跳转按钮（多按钮自动取第一个）；频率限制每机器人 20 条/分钟。
 
 详细：`references/provider-matrix.md`（能力矩阵）、`references/console-setup.md`（后台配置+权限清单）、`references/org-lookup-contract.md`（自定义组织架构接口契约）。
 
@@ -188,15 +215,18 @@ $SCRIPT --list-accounts / --set-default-account <slug> / --remove-account <slug>
 | `scripts/core/safety.py` | 安全门控 + 审核码 |
 | `scripts/core/sendlog.py` | 发送日志（撤回路由） |
 | `scripts/core/templates.py` | 消息模板渲染 |
+| `scripts/core/onboard.py` | 配置向导（--onboard/--onboard-status） |
 | `scripts/providers/base.py` | Provider 抽象基类 + 能力矩阵 |
 | `scripts/providers/dingtalk.py` | 钉钉适配器 |
 | `scripts/providers/feishu.py` | 飞书适配器 |
+| `scripts/providers/wecom.py` | 企业微信适配器（webhook 模式） |
 | `scripts/providers/org_lookup.py` | 部门查询分发（builtin/custom） |
 
 ## 版本
 
-- v1.0.0（开源首版）：钉钉+飞书双平台；文本/MD/图片/文件/@/撤回/单聊/群聊/部门广播；卡片消息（ActionCard/interactive）；建群+群列表；多账号；联系人别名；模板；dry-run；安全门控+审核码
-- 规划：企业微信（WeCom）/Slack provider
+- v1.0.0：钉钉+飞书；文本/MD/图片/文件/卡片/@/撤回/单聊/群聊/建群/部门广播；多账号；别名；模板；dry-run；门控+审核码
+- v2.1.0：企业微信 wecom provider（webhook 模式：群文本/MD/图片/文件/news卡片/@人；wecom-app 全能力模式预留）；onboard 配置向导（`--onboard` / `--onboard-status`，增量补缺 + 内嵌权限清单 + 非TTY自动降级）
+- 规划：wecom-app 全能力模式（需企业自有出口 IP）、Slack provider
 
 ### 钉钉建群的通道差异（重要）
 
