@@ -2,7 +2,12 @@
 """smart-message-plus: contact aliases (single/members) + group aliases."""
 from __future__ import annotations
 
+import re
+
 from . import config as C
+
+# wecom webhook key（UUID 形态）
+_WECOM_KEY_RE = re.compile(r"^[0-9a-fA-F-]{30,50}$")
 
 
 def _empty() -> dict:
@@ -61,6 +66,11 @@ def resolve_group(alias_or_id: str, provider: str) -> str | None:
         return alias_or_id
     if provider == "feishu" and alias_or_id.startswith("oc_"):
         return alias_or_id
+    # wecom webhook 模式：完整 webhook URL 或裸 key（UUID 形态）直接放行
+    if provider == "wecom" and (
+        alias_or_id.startswith("http") or _WECOM_KEY_RE.match(alias_or_id)
+    ):
+        return alias_or_id
     data = load()
     ent = data["groups"].get(alias_or_id)
     if ent is None:
@@ -91,7 +101,7 @@ def save_contact(alias: str, ctype: str, value: str, note: str = "") -> dict:
                 )
             prov, uid = pair.split(":", 1)
             prov, uid = prov.strip(), uid.strip()
-            if prov not in ("dingtalk", "feishu"):
+            if prov not in ("dingtalk", "feishu", "wecom"):
                 raise ValueError(f"未知 provider: {prov}")
             ids[prov] = uid
         if not ids:
