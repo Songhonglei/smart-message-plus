@@ -6,7 +6,7 @@ import time
 
 from . import config as C
 
-PROVIDERS = ("dingtalk", "feishu")
+PROVIDERS = ("dingtalk", "feishu", "wecom")
 
 # provider -> required + optional credential fields
 PROVIDER_FIELDS = {
@@ -17,6 +17,13 @@ PROVIDER_FIELDS = {
     "feishu": {
         "required": ["app_id", "app_secret"],
         "optional": [],
+    },
+    # wecom 当前为群机器人 webhook 模式：无需企业凭证。
+    # webhook_url 可选（作为默认群）；群 webhook 推荐用 --save-group 管理。
+    # 预留 wecom-app 模式字段：corp_id / corp_secret / agent_id（需企业可信 IP）。
+    "wecom": {
+        "required": [],
+        "optional": ["webhook_url", "corp_id", "corp_secret", "agent_id"],
     },
 }
 
