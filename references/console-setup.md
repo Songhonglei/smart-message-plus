@@ -1,7 +1,7 @@
-# Console Setup Guide（钉钉/飞书后台配置指引）
+# Console Setup Guide（钉钉/飞书/企业微信后台配置指引）
 
 Everything you must click in the vendor consoles before the CLI works.
-Verified against real apps on 2026-07-14.
+Verified against real apps on 2026-07-14 (DingTalk/Feishu) and 2026-07-17 (WeCom).
 
 ## 钉钉（open-dev.dingtalk.com）
 
@@ -70,6 +70,36 @@ Verified against real apps on 2026-07-14.
 - 群 chat_id（`oc_` 开头）：机器人进群后 CLI 侧可通过 `im/v1/chats` 列出
 - 保存别名：`--save-group <群名> feishu <oc_xxx>`
 
+## 企业微信（webhook 模式，当前唯一支持模式）
+
+### 接入步骤（30 秒，无需管理后台）
+
+1. 在企业微信里打开任意**纯内部群**（成员全是本企业的；外部群不支持群机器人）
+2. 群右上角「···」→ **添加群机器人** → 新建（手机端部分版本无此入口，用 PC 端最稳）
+3. 复制 **Webhook 地址**（形如 `https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxxx-xxxx-...`）
+4. 保存为群别名即可发送：
+
+```bash
+$SCRIPT --save-group 告警群 wecom "<webhook地址>"
+$SCRIPT --provider wecom --chat-id 告警群 --msg "内容"
+```
+
+注意：
+- **一个 webhook = 一个群**；要发多个群就保存多个群别名
+- 新版「智能机器人平台」的机器人资料页链接（openBotProfile）**不是** webhook，两套体系，别混
+- 频率限制：每机器人 20 条/分钟
+- webhook key 等同凭证，泄漏者可向群里发任意消息——按密钥对待
+
+### 为什么没有全能力的 wecom-app 模式（重要背景）
+
+企业微信自建应用 API（单聊/通讯录/建群/撤回）要求**企业可信 IP**：
+
+1. 每次 API 调用都校验请求的**真实来源 IP** 是否在白名单（errcode=60020）
+2. 配置可信 IP 前必须先设置「可信域名」或「接收消息服务器 URL」
+3. **第三方云服务商的出口 IP 会被控制台直接拒绝**（实测腾讯云 IP 提示"以下IP属于第三方服务商，请配置本企业服务器的IP"）
+
+因此托管容器/云环境（没有企业自有出口 IP）**客观无法使用自建应用模式**。若你的运行环境有企业自有服务器出口 IP，可等待/自行实现 wecom-app 模式（账号字段 corp_id / corp_secret / agent_id 已预留）。
+
 ## 常见错误速查
 
 | 现象 | 原因 | 处理 |
@@ -81,3 +111,6 @@ Verified against real apps on 2026-07-14.
 | 飞书 230020 | 撤回超 24h | 无法撤回，平台限制 |
 | 飞书查 email/mobile 返回空 user_id | 目标账号未绑定该邮箱/手机号 | 用别名或群成员反查 |
 | 消息 API 成功但人没收到 | 钉钉：查与机器人的单聊会话（可能没弹通知）；飞书：应用可用范围不含目标用户 | 分别检查 |
+| 企微 errcode=93000 | webhook 无效/机器人被移出群 | 到群里重新获取 webhook |
+| 企微 errcode=45009 | 频率限制（20条/分钟） | 稍后重试 |
+| 企微 errcode=60020 | 自建应用可信 IP 校验失败 | webhook 模式不受影响；app 模式需企业自有出口 IP |
