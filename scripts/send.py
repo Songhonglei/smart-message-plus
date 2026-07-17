@@ -21,15 +21,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core import accounts as A
 from core import config as C
 from core import contacts as CT
+from core import onboard as OB
 from core import safety, sendlog, templates
 from providers import org_lookup
 from providers.base import NotSupported, Provider
 from providers.dingtalk import DingTalkProvider
 from providers.feishu import FeishuProvider
+from providers.wecom import WeComProvider
 
 PROVIDERS: dict[str, type[Provider]] = {
     "dingtalk": DingTalkProvider,
     "feishu": FeishuProvider,
+    "wecom": WeComProvider,
 }
 
 
@@ -65,6 +68,9 @@ def cmd_save_account(args):
     # feishu uses app_id/app_secret; dingtalk uses app_key/app_secret
     if args.save_account[1] == "feishu":
         creds = {"app_id": creds["app_id"] or creds["app_key"], "app_secret": creds["app_secret"]}
+    elif args.save_account[1] == "wecom":
+        # webhook 模式：无必填凭证；--webhook-url 可作为默认群
+        creds = {"webhook_url": args.webhook_url or ""}
     try:
         A.save_account(args.save_account[0], args.save_account[1], args.save_account[2], creds)
     except ValueError as e:
@@ -287,20 +293,20 @@ def _send_p2p_flow(args, p: Provider, ids: list[str], target_desc: str, text: st
     _gate(args, p, ids, text or "(媒体消息)")
 
     results = []
-    if args.image:
-        for img in args.image:
-            results.append(("图片 " + img, p.send_image_p2p(ids, img)))
-    if args.file:
-        results.append(("文件 " + args.file, p.send_file_p2p(ids, args.file)))
-    if text:
-        if args.card:
-            buttons = _parse_buttons(args)
-            try:
+    try:
+        if args.image:
+            for img in args.image:
+                results.append(("图片 " + img, p.send_image_p2p(ids, img)))
+        if args.file:
+            results.append(("文件 " + args.file, p.send_file_p2p(ids, args.file)))
+        if text:
+            if args.card:
+                buttons = _parse_buttons(args)
                 results.append(("卡片", p.send_card_p2p(ids, args.card_title, text, buttons)))
-            except (NotSupported, ValueError) as e:
-                die(str(e))
-        else:
-            results.append(("消息", p.send_p2p(ids, text, markdown=args.markdown)))
+            else:
+                results.append(("消息", p.send_p2p(ids, text, markdown=args.markdown)))
+    except (NotSupported, ValueError) as e:
+        die(str(e))
 
     all_ok = True
     for label, res in results:
@@ -326,21 +332,21 @@ def _send_group_flow(args, p: Provider, chat_id: str, text: str, mention_ids: li
             print(f"[dry-run] 卡片: 标题[{args.card_title or '(无)'}] 按钮 {len(_parse_buttons(args))} 个")
         return
     results = []
-    if args.image:
-        for img in args.image:
-            results.append(("图片 " + img, p.send_image_group(chat_id, img)))
-    if args.file:
-        results.append(("文件 " + args.file, p.send_file_group(chat_id, args.file)))
-    if text:
-        if args.card:
-            buttons = _parse_buttons(args)
-            try:
+    try:
+        if args.image:
+            for img in args.image:
+                results.append(("图片 " + img, p.send_image_group(chat_id, img)))
+        if args.file:
+            results.append(("文件 " + args.file, p.send_file_group(chat_id, args.file)))
+        if text:
+            if args.card:
+                buttons = _parse_buttons(args)
                 results.append(("卡片", p.send_card_group(chat_id, args.card_title, text, buttons)))
-            except (NotSupported, ValueError) as e:
-                die(str(e))
-        else:
-            results.append(("消息", p.send_group(chat_id, text, markdown=args.markdown,
-                                            mention_ids=mention_ids, mention_all=args.mention_all)))
+            else:
+                results.append(("消息", p.send_group(chat_id, text, markdown=args.markdown,
+                                                mention_ids=mention_ids, mention_all=args.mention_all)))
+    except (NotSupported, ValueError) as e:
+        die(str(e))
     all_ok = True
     for label, res in results:
         if res.ok:
@@ -480,7 +486,7 @@ def main():
     ap.add_argument("--mention", nargs="+", help="@指定人（群聊）")
     ap.add_argument("--mention-all", action="store_true", help="@所有人（群聊）")
     # control
-    ap.add_argument("--provider", choices=list(PROVIDERS), help="渠道: dingtalk/feishu")
+    ap.add_argument("--provider", choices=list(PROVIDERS), help="渠道: dingtalk/feishu/wecom")
     ap.add_argument("--account", help="指定账号 slug/名称")
     ap.add_argument("--dry-run", action="store_true", help="只预览不发送")
     ap.add_argument("--force-send", action="store_true", help="越过警告线发送")
@@ -496,9 +502,14 @@ def main():
     ap.add_argument("--app-id", help="飞书 App ID")
     ap.add_argument("--robot-code", help="钉钉 robotCode（默认=app_key）")
     ap.add_argument("--agent-id", help="钉钉 AgentId（可选）")
+    ap.add_argument("--webhook-url", help="企业微信群机器人 webhook（wecom 账号可选默认群）")
     ap.add_argument("--test-account", metavar="SLUG", help="验证账号凭证")
     ap.add_argument("--set-default-account", metavar="SLUG")
     ap.add_argument("--remove-account", metavar="SLUG")
+    # onboard (v2.1)
+    ap.add_argument("--onboard", action="store_true", help="交互式配置向导（渠道/凭证/验证/默认账号）")
+    ap.add_argument("--onboard-status", action="store_true", help="查看配置完整度（渠道/凭证有效性/别名/门控）")
+    ap.add_argument("--force", action="store_true", help="配合 --onboard：已配置渠道也重新配置")
     # contact mgmt
     ap.add_argument("--save-contact", nargs=3, metavar=("ALIAS", "TYPE", "VALUE"),
                     help='TYPE=single: "dingtalk:ID,feishu:ID"; TYPE=members: "别名1,别名2"')
@@ -519,6 +530,14 @@ def main():
     args = ap.parse_args()
 
     # management commands (no send)
+    if args.onboard:
+        def _save(slug, prov, creds):
+            name = {"dingtalk": "钉钉Bot", "feishu": "飞书Bot", "wecom": "企微Bot"}.get(prov, prov)
+            A.save_account(slug, prov, name, creds)
+        return OB.run(args, _save)
+    if args.onboard_status:
+        OB.print_status()
+        return
     if args.list_accounts:
         return cmd_list_accounts()
     if args.save_account:
