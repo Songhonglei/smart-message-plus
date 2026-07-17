@@ -4,7 +4,7 @@
 
 ## 1. 定位与目标
 
-smart-message-plus 是一个**跨平台 IM 消息发送 CLI**，通过企业自建应用向**钉钉（DingTalk）**和**飞书（Feishu / Lark）**发送消息。设计目标：
+smart-message-plus 是一个**跨平台 IM 消息发送 CLI**，通过企业自建应用向**钉钉（DingTalk）**和**飞书（Feishu / Lark）**发送消息，并支持**企业微信（WeCom）群机器人 webhook** 发送群消息。设计目标：
 
 - **一套命令行，多个平台**：同一份 `send.py` 参数在钉钉、飞书间通用，平台差异由适配器内部消化。
 - **零第三方依赖**：仅用 Python 标准库（`urllib` / `json` / `argparse` / `hashlib` / `secrets`），拷贝即用，不需要 `pip install`。
@@ -163,4 +163,5 @@ org_lookup_builtin=True, card=True, create_group=True,
 ## 7. 扩展方向
 
 - 新增渠道（企业微信 WeCom / Slack 等）：见同目录 [`add-channel.md`](./add-channel.md)。
-- 规划中：企业微信、Slack provider。
+- 已落地：企业微信 wecom-webhook provider（v2.1，群聊消息；全能力 wecom-app 模式因企业可信 IP 政策预留，详见 references/console-setup.md）。
+- 规划中：wecom-app 全能力模式、Slack provider。
