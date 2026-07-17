@@ -1,10 +1,11 @@
 # smart-message-plus
 
-> Cross-platform IM messaging CLI for **DingTalk (钉钉)** and **Feishu / Lark (飞书)** enterprise apps — pure Python stdlib, zero third-party dependencies.
+> Cross-platform IM messaging CLI for **DingTalk (钉钉)**, **Feishu / Lark (飞书)** enterprise apps and **WeCom (企业微信)** group robot webhooks — pure Python stdlib, zero third-party dependencies.
 
 ## Features
 
-- **Two providers, one CLI** — DingTalk & Feishu adapters behind a shared provider interface (WeCom / Slack planned)
+- **Three providers, one CLI** — DingTalk, Feishu & WeCom(webhook) adapters behind a shared provider interface (Slack planned)
+- **Onboarding wizard** — `--onboard` interactive setup (channel → credentials → live verify → defaults) with embedded permission checklists; `--onboard-status` shows config completeness
 - **All the message types** — text, Markdown, images, files, interactive cards with jump buttons, @mentions / @all
 - **Recall** — undo a sent message from the send log (DingTalk unlimited, Feishu within 24h)
 - **Contact aliases** — one alias maps to per-platform user IDs; group aliases too
@@ -47,7 +48,7 @@ git clone https://github.com/Songhonglei/smart-message-plus.git
 Full documentation in [SKILL.md](./SKILL.md). References:
 
 - [`references/provider-matrix.md`](./references/provider-matrix.md) — capability matrix & platform quirks
-- [`references/console-setup.md`](./references/console-setup.md) — DingTalk / Feishu console setup + permission checklist
+- [`references/console-setup.md`](./references/console-setup.md) — DingTalk / Feishu / WeCom console setup + permission checklist
 - [`references/org-lookup-contract.md`](./references/org-lookup-contract.md) — custom org-lookup HTTP contract (+ mock server)
 
 ## Install in your AI agent
